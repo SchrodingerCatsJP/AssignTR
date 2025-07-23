@@ -43,7 +43,6 @@ class MainActivity : AppCompatActivity() {
 
     private val countdownHandler = Handler(Looper.getMainLooper())
     private var countdownRunnable: Runnable? = null
-    private var hasInteractedThisSession = false
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
@@ -69,12 +68,6 @@ class MainActivity : AppCompatActivity() {
         askForNotificationPermission()
     }
 
-    override fun onStop() {
-        super.onStop()
-        // This is called when the user leaves the app.
-        showReminderIfNeeded()
-    }
-
     override fun onDestroy() {
         super.onDestroy()
         countdownRunnable?.let { countdownHandler.removeCallbacks(it) }
@@ -89,29 +82,6 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             ReminderBroadcastReceiver.scheduleDailyReminder(this)
-        }
-    }
-
-    private fun showReminderIfNeeded() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val lastActionTime = prefs.getLong(LAST_ACTION_DATE_KEY, 0)
-
-        val lastActionCalendar = Calendar.getInstance().apply { timeInMillis = lastActionTime }
-        val todayCalendar = Calendar.getInstance()
-        val hasActedToday = lastActionCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
-                lastActionCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR)
-
-        // Check if current time is before the scheduled reminder time (8 PM)
-        val reminderTime = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 20)
-            set(Calendar.MINUTE, 0)
-        }
-        val isBeforeReminderTime = Calendar.getInstance().before(reminderTime)
-
-        // If no action has been logged today, AND no action was taken in this session,
-        // AND it's before the scheduled reminder time, then show an immediate notification.
-        if (!hasActedToday && !hasInteractedThisSession && isBeforeReminderTime) {
-            ReminderBroadcastReceiver.showReminderNotification(this)
         }
     }
 
@@ -152,6 +122,9 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                         drawable.level = 0
+                        // The daily lock is now triggered ONLY by the DONE and SKIPPED buttons
+                        saveLastActionDate()
+                        updateButtonStateForToday()
                     }
                     handler.postDelayed(actionRunnable!!, 2000)
                     true
@@ -257,16 +230,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun addLog(points: Long) {
-        hasInteractedThisSession = true // Mark that an interaction has occurred
         logEntries.add(0, LogEntry(points = points, timestamp = Date()))
         logAdapter.notifyItemInserted(0)
         binding.recyclerViewLogs.scrollToPosition(0)
         updatePointsUI()
         saveLogs()
-
-        // Any log action now counts as the daily interaction
-        saveLastActionDate()
-        updateButtonStateForToday()
+        // The daily lock logic has been removed from this general function
     }
 
     private fun updatePointsUI() {
