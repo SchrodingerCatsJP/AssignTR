@@ -53,11 +53,8 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
             val intent = Intent(context, ReminderBroadcastReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
 
-            // On Android 12+, we need permission to schedule exact alarms
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (!alarmManager.canScheduleExactAlarms()) {
-                    // In a real app, you might redirect the user to settings.
-                    // For now, we just won't schedule if permission is missing.
                     return
                 }
             }
@@ -69,12 +66,10 @@ class ReminderBroadcastReceiver : BroadcastReceiver() {
                 set(Calendar.SECOND, 0)
             }
 
-            // If it's already past 8 PM today, schedule for 8 PM tomorrow
             if (calendar.timeInMillis <= System.currentTimeMillis()) {
                 calendar.add(Calendar.DAY_OF_YEAR, 1)
             }
 
-            // Use a precise alarm
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 calendar.timeInMillis,
