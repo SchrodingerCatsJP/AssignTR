@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The background of the button (default state) -->
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <!-- This color is controlled by your app's theme (e.g., blue_500) -->
+            <solid android:color="?attr/colorPrimary" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+
+    <!-- The progress bar that will fill up -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <!-- This color is also controlled by your app's theme (e.g., blue_700) -->
+                <solid android:color="?attr/colorPrimaryVariant" />
+                <corners android:radius="4dp" />
+            </shape>
+        </clip>
+    </item>
+
+</layer-list>
