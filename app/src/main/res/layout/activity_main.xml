@@ -4,18 +4,26 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp"
     tools:context=".MainActivity">
+
+    <include
+        android:id="@+id/toolbar"
+        layout="@layout/toolbar_custom"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Title for Total Points -->
     <TextView
         android:id="@+id/textViewTotalPointsLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
         android:text="Total Points"
         android:textSize="20sp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
     <!-- Displays the total accumulated points -->
     <TextView
@@ -26,7 +34,7 @@
         android:textColor="@android:color/holo_green_dark"
         android:textSize="24sp"
         android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toStartOf="@id/textViewTotalPointsLabel"
         app:layout_constraintTop_toBottomOf="@id/textViewTotalPointsLabel" />
 
     <!-- TextView for Gross Total Points (before subtraction) -->
@@ -36,7 +44,7 @@
         android:layout_height="wrap_content"
         android:text="(Earned: 0)"
         android:textSize="14sp"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toStartOf="@id/textViewTotalPointsValue"
         app:layout_constraintTop_toBottomOf="@id/textViewTotalPointsValue" />
 
     <!-- TextView to display total used points -->
@@ -47,7 +55,7 @@
         android:text="(Used: 0)"
         android:textColor="@android:color/holo_red_dark"
         android:textSize="14sp"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintStart_toStartOf="@id/textViewGrossTotalValue"
         app:layout_constraintTop_toBottomOf="@id/textViewGrossTotalValue" />
 
     <!-- Title for Monthly Points -->
@@ -55,10 +63,12 @@
         android:id="@+id/textViewMonthlyPointsLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
         android:text="This Month"
         android:textSize="20sp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
     <!-- Displays the points for the current month -->
     <TextView
@@ -69,7 +79,7 @@
         android:textColor="@android:color/holo_blue_dark"
         android:textSize="24sp"
         android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/textViewMonthlyPointsLabel"
         app:layout_constraintTop_toBottomOf="@id/textViewMonthlyPointsLabel" />
 
     <!-- TextView for Gross Monthly Points -->
@@ -79,7 +89,7 @@
         android:layout_height="wrap_content"
         android:text="(Earned: 0)"
         android:textSize="14sp"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/textViewMonthlyPointsValue"
         app:layout_constraintTop_toBottomOf="@id/textViewMonthlyPointsValue" />
 
     <!-- TextView for Used Monthly Points -->
@@ -90,7 +100,7 @@
         android:text="(Used: 0)"
         android:textColor="@android:color/holo_red_dark"
         android:textSize="14sp"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/textViewGrossMonthlyValue"
         app:layout_constraintTop_toBottomOf="@id/textViewGrossMonthlyValue" />
 
     <!-- Divider line -->
@@ -99,6 +109,7 @@
         android:layout_width="0dp"
         android:layout_height="1dp"
         android:layout_marginTop="16dp"
+        android:layout_marginHorizontal="16dp"
         android:background="?android:attr/listDivider"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -109,6 +120,7 @@
         android:id="@+id/textViewGraphLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="16dp"
         android:text="7-Day Progress"
         android:textSize="18sp"
@@ -121,6 +133,7 @@
         android:id="@+id/simpleGraphView"
         android:layout_width="0dp"
         android:layout_height="180dp"
+        android:layout_marginHorizontal="16dp"
         android:layout_marginTop="8dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -131,6 +144,7 @@
         android:id="@+id/textViewLogsLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
         android:layout_marginTop="16dp"
         android:text="Recent Logs"
         android:textSize="18sp"
@@ -143,9 +157,11 @@
         android:id="@+id/buttonSkipped"
         android:layout_width="0dp"
         android:layout_height="50dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
         android:text="SKIPPED"
-        android:textSize="14sp"
         android:textColor="@android:color/white"
+        android:textSize="14sp"
         android:gravity="center"
         android:background="@drawable/progress_button_background_red"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -157,10 +173,11 @@
         android:id="@+id/buttonDone"
         android:layout_width="0dp"
         android:layout_height="70dp"
+        android:layout_marginHorizontal="16dp"
         android:layout_marginBottom="8dp"
         android:text="DONE (+20,000)"
-        android:textSize="18sp"
         android:textColor="@android:color/white"
+        android:textSize="18sp"
         android:gravity="center"
         android:background="@drawable/progress_button_background"
         app:layout_constraintBottom_toTopOf="@id/buttonSkipped"
@@ -172,6 +189,7 @@
         android:id="@+id/recyclerViewLogs"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:layout_marginHorizontal="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="16dp"
         app:layout_constraintBottom_toTopOf="@id/buttonDone"

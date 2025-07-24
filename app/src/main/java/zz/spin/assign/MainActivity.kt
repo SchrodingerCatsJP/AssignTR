@@ -71,6 +71,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Set up the custom toolbar
+        setSupportActionBar(binding.toolbar.toolbarCustom)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+
         loadLogs()
         setupRecyclerView()
         setupClickListeners()
@@ -253,11 +257,10 @@ class MainActivity : AppCompatActivity() {
                 set(Calendar.MILLISECOND, 999)
             }
 
-            // Calculate points earned that day (only positive values)
+            // Calculate net points for that day (earned - subtracted)
             val dayPoints = logEntries.filter { log ->
                 log.timestamp.time >= dayStart.timeInMillis &&
-                        log.timestamp.time <= dayEnd.timeInMillis &&
-                        log.points > 0
+                        log.timestamp.time <= dayEnd.timeInMillis
             }.sumOf { it.points }.toFloat()
 
             points.add(dayPoints)
@@ -334,8 +337,8 @@ class MainActivity : AppCompatActivity() {
         binding.buttonSkipped.alpha = if (isEnabled) 1.0f else 0.5f
         countdownRunnable?.let { countdownHandler.removeCallbacks(it) }
         if (isEnabled) {
-            (binding.buttonDone as TextView).text = "DONE (+20,000)"
-            (binding.buttonSkipped as TextView).text = "SKIPPED"
+            binding.buttonDone.text = "DONE (+20,000)"
+            binding.buttonSkipped.text = "SKIPPED"
         } else {
             val midnight = Calendar.getInstance().apply {
                 add(Calendar.DAY_OF_YEAR, 1)
@@ -349,8 +352,8 @@ class MainActivity : AppCompatActivity() {
                         val minutes = (timeRemaining / (1000 * 60)) % 60
                         val seconds = (timeRemaining / 1000) % 60
                         val countdownText = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
-                        (binding.buttonDone as TextView).text = countdownText
-                        (binding.buttonSkipped as TextView).text = countdownText
+                        binding.buttonDone.text = countdownText
+                        binding.buttonSkipped.text = countdownText
                         countdownHandler.postDelayed(this, 1000)
                     } else {
                         updateButtonStateForToday()
@@ -444,6 +447,10 @@ class MainActivity : AppCompatActivity() {
         // Used Monthly Points
         val usedMonthly = monthlyLogs.filter { it.points < 0 }.sumOf { -it.points }
         binding.textViewUsedMonthlyValue.text = "(Used: ${numberFormatter.format(usedMonthly)})"
+
+        // Update Toolbar
+        val completedCount = logEntries.count { it.points == 20000L }
+        binding.toolbar.toolbarCompletedCount.text = getString(R.string.completed_count, completedCount)
     }
 
     private fun saveLogs() {

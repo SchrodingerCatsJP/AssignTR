@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">AssignTR</string>
+    <string name="completed_count">Completed: %d</string>
 </resources>
