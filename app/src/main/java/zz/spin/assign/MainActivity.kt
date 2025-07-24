@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.LayerDrawable
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -40,14 +41,23 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_NAME = "AssignmentTrackerPrefs"
     private val LOGS_KEY = "logEntries"
     private val LAST_ACTION_DATE_KEY = "lastActionDate"
+    private val LAST_APP_OPEN_KEY = "lastAppOpen"
+    private val EXIT_NOTIFICATION_SHOWN_KEY = "exitNotificationShown"
 
     private val countdownHandler = Handler(Looper.getMainLooper())
     private var countdownRunnable: Runnable? = null
+
+    // Track if user has interacted with DONE/SKIPPED today
+    private var hasInteractedToday = false
+
+    // MediaPlayer for sound effects
+    private var confirmationSound: MediaPlayer? = null
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
                 ReminderBroadcastReceiver.scheduleDailyReminder(this)
+                AppOpenReminderReceiver.scheduleDailyAppOpenReminder(this)
                 Toast.makeText(this, "Reminder notifications enabled!", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Notifications permission denied.", Toast.LENGTH_SHORT).show()
@@ -65,23 +75,127 @@ class MainActivity : AppCompatActivity() {
         updatePointsUI()
         updateButtonStateForToday()
 
+        // Record that the app was opened today
+        recordAppOpen()
+
         askForNotificationPermission()
+
+        // Initialize confirmation sound
+        initializeConfirmationSound()
+    }
+
+    private fun initializeConfirmationSound() {
+        try {
+            // Using system notification sound as confirmation sound
+            // You can also use a custom sound file from res/raw/ folder
+            val soundUri = android.provider.Settings.System.DEFAULT_NOTIFICATION_URI
+            confirmationSound = MediaPlayer.create(this, soundUri)
+            // confirmationSound = MediaPlayer.create(this, R.raw.confirmation_beep)
+            confirmationSound?.setVolume(0.7f, 0.7f) // Set volume to 70%
+        } catch (e: Exception) {
+            // Fallback: create a simple beep sound programmatically
+            confirmationSound = null
+        }
+    }
+
+    private fun playConfirmationSound() {
+        try {
+            confirmationSound?.let { player ->
+                if (player.isPlaying) {
+                    player.stop()
+                    player.prepare()
+                }
+                player.start()
+            }
+        } catch (e: Exception) {
+            // If sound fails, provide haptic feedback as fallback
+            // This is already handled in the button press
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reset exit notification flag when app comes to foreground
+        resetExitNotificationFlag()
+        // Record app open time
+        recordAppOpen()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Check if we should show exit notification
+        checkAndScheduleExitNotification()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         countdownRunnable?.let { countdownHandler.removeCallbacks(it) }
+
+        // Release MediaPlayer resources
+        confirmationSound?.release()
+        confirmationSound = null
+    }
+
+    private fun recordAppOpen() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        prefs.putLong(LAST_APP_OPEN_KEY, System.currentTimeMillis())
+        prefs.apply()
+    }
+
+    private fun resetExitNotificationFlag() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        prefs.putBoolean(EXIT_NOTIFICATION_SHOWN_KEY, false)
+        prefs.apply()
+    }
+
+    private fun checkAndScheduleExitNotification() {
+        // Check if user has already interacted today
+        checkIfInteractedToday()
+
+        // Only schedule exit notification if user hasn't interacted today
+        if (!hasInteractedToday) {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val exitNotificationShown = prefs.getBoolean(EXIT_NOTIFICATION_SHOWN_KEY, false)
+
+            if (!exitNotificationShown) {
+                // Schedule immediate notification (after 3 seconds to ensure app is truly backgrounded)
+                ExitNotificationReceiver.scheduleExitNotification(this)
+
+                // Mark that we've shown the notification for today
+                val editor = prefs.edit()
+                editor.putBoolean(EXIT_NOTIFICATION_SHOWN_KEY, true)
+                editor.apply()
+            }
+        }
+    }
+
+    private fun checkIfInteractedToday() {
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val lastActionTime = prefs.getLong(LAST_ACTION_DATE_KEY, 0)
+
+        if (lastActionTime == 0L) {
+            hasInteractedToday = false
+            return
+        }
+
+        val lastActionCalendar = Calendar.getInstance().apply { timeInMillis = lastActionTime }
+        val todayCalendar = Calendar.getInstance()
+
+        hasInteractedToday = lastActionCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
+                lastActionCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR)
     }
 
     private fun askForNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
                 ReminderBroadcastReceiver.scheduleDailyReminder(this)
+                AppOpenReminderReceiver.scheduleDailyAppOpenReminder(this)
             } else {
                 requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
             }
         } else {
             ReminderBroadcastReceiver.scheduleDailyReminder(this)
+            AppOpenReminderReceiver.scheduleDailyAppOpenReminder(this)
         }
     }
 
@@ -119,12 +233,20 @@ class MainActivity : AppCompatActivity() {
                     progressAnimator = ObjectAnimator.ofInt(drawable, "level", 0, 10000).apply { duration = 2000; start() }
                     actionRunnable = Runnable {
                         addLog(points)
+
+                        // Play confirmation sound
+                        playConfirmationSound()
+
                         Toast.makeText(this@MainActivity, message, Toast.LENGTH_SHORT).show()
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                         drawable.level = 0
                         // The daily lock is now triggered ONLY by the DONE and SKIPPED buttons
                         saveLastActionDate()
                         updateButtonStateForToday()
+                        // Update interaction flag
+                        hasInteractedToday = true
+                        // Cancel any pending exit notifications since user interacted
+                        ExitNotificationReceiver.cancelExitNotification(this@MainActivity)
                     }
                     handler.postDelayed(actionRunnable!!, 2000)
                     true
@@ -152,6 +274,7 @@ class MainActivity : AppCompatActivity() {
         val isSameDay = lastActionCalendar.get(Calendar.YEAR) == todayCalendar.get(Calendar.YEAR) &&
                 lastActionCalendar.get(Calendar.DAY_OF_YEAR) == todayCalendar.get(Calendar.DAY_OF_YEAR)
         setButtonsEnabled(!isSameDay)
+        hasInteractedToday = isSameDay
     }
 
     private fun setButtonsEnabled(isEnabled: Boolean) {
@@ -235,7 +358,6 @@ class MainActivity : AppCompatActivity() {
         binding.recyclerViewLogs.scrollToPosition(0)
         updatePointsUI()
         saveLogs()
-        // The daily lock logic has been removed from this general function
     }
 
     private fun updatePointsUI() {
@@ -250,7 +372,6 @@ class MainActivity : AppCompatActivity() {
         // Total Used Points
         val totalUsed = logEntries.filter { it.points < 0 }.sumOf { -it.points }
         binding.textViewTotalSubtractedValue.text = "(Used: ${numberFormatter.format(totalUsed)})"
-
 
         val calendar = Calendar.getInstance()
         val currentMonth = calendar.get(Calendar.MONTH)
@@ -269,7 +390,7 @@ class MainActivity : AppCompatActivity() {
         val grossMonthly = monthlyLogs.filter { it.points > 0 }.sumOf { it.points }
         binding.textViewGrossMonthlyValue.text = "(Earned: ${numberFormatter.format(grossMonthly)})"
 
-        // NEW: Used Monthly Points
+        // Used Monthly Points
         val usedMonthly = monthlyLogs.filter { it.points < 0 }.sumOf { -it.points }
         binding.textViewUsedMonthlyValue.text = "(Used: ${numberFormatter.format(usedMonthly)})"
     }
