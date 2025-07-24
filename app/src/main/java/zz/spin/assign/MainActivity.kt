@@ -320,7 +320,7 @@ class MainActivity : AppCompatActivity() {
     private fun showCustomPointsDialog(isAdding: Boolean) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_points, null)
         val editText = dialogView.findViewById<EditText>(R.id.editTextDialogCustomPoints)
-        val dialogTitle = if (isAdding) "Add Custom Points" else "Use Custom Points"
+        val dialogTitle = if (isAdding) "Add Points" else "Use Points"
         val buttonText = if (isAdding) "Add" else "Use"
 
         AlertDialog.Builder(this)
@@ -341,7 +341,7 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this, "Value is too large", Toast.LENGTH_SHORT).show()
                     }
                 } else {
-                    Toast.makeText(this, "Please enter a point value", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Enter a point value", Toast.LENGTH_SHORT).show()
                 }
                 dialog.dismiss()
             }
