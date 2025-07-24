@@ -50,7 +50,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/textViewGrossTotalValue" />
 
-
     <!-- Title for Monthly Points -->
     <TextView
         android:id="@+id/textViewMonthlyPointsLabel"
@@ -83,7 +82,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/textViewMonthlyPointsValue" />
 
-    <!-- NEW TextView for Used Monthly Points -->
+    <!-- TextView for Used Monthly Points -->
     <TextView
         android:id="@+id/textViewUsedMonthlyValue"
         android:layout_width="wrap_content"
@@ -105,19 +104,41 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/textViewTotalSubtractedValue" />
 
+    <!-- NEW: Graph Section -->
+    <TextView
+        android:id="@+id/textViewGraphLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="7-Day Progress"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/divider" />
+
+    <!-- Graph Container -->
+    <zz.spin.assign.SimpleGraphView
+        android:id="@+id/simpleGraphView"
+        android:layout_width="0dp"
+        android:layout_height="180dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewGraphLabel" />
+
     <!-- Title for the logs -->
     <TextView
         android:id="@+id/textViewLogsLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="Logs"
-        android:textSize="20sp"
+        android:layout_marginTop="16dp"
+        android:text="Recent Logs"
+        android:textSize="18sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/divider" />
+        app:layout_constraintTop_toBottomOf="@id/simpleGraphView" />
 
-    <!-- UPDATED TextView styled as a button for SKIPPED -->
+    <!-- SKIPPED button -->
     <TextView
         android:id="@+id/buttonSkipped"
         android:layout_width="0dp"
@@ -131,7 +152,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- This TextView remains the same, using the blue theme color -->
+    <!-- DONE button -->
     <TextView
         android:id="@+id/buttonDone"
         android:layout_width="0dp"
@@ -146,7 +167,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- This is where the list of logs will be displayed -->
+    <!-- RecyclerView for logs -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewLogs"
         android:layout_width="0dp"

@@ -3,6 +3,7 @@ package zz.spin.assign
 import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
@@ -25,6 +26,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import zz.spin.assign.databinding.ActivityMainBinding
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -74,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         setupClickListeners()
         updatePointsUI()
         updateButtonStateForToday()
+        setupGraph()
 
         // Record that the app was opened today
         recordAppOpen()
@@ -87,10 +90,8 @@ class MainActivity : AppCompatActivity() {
     private fun initializeConfirmationSound() {
         try {
             // Using system notification sound as confirmation sound
-            // You can also use a custom sound file from res/raw/ folder
             val soundUri = android.provider.Settings.System.DEFAULT_NOTIFICATION_URI
             confirmationSound = MediaPlayer.create(this, soundUri)
-            // confirmationSound = MediaPlayer.create(this, R.raw.confirmation_beep)
             confirmationSound?.setVolume(0.7f, 0.7f) // Set volume to 70%
         } catch (e: Exception) {
             // Fallback: create a simple beep sound programmatically
@@ -218,6 +219,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupGraph() {
+        // Initial graph setup - data will be populated in updateGraph()
+        updateGraph()
+    }
+
+    private fun updateGraph() {
+        val graphView = binding.simpleGraphView
+        val points = mutableListOf<Float>()
+        val dateLabels = mutableListOf<String>()
+
+        // Get last 7 days data
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+
+        for (i in 6 downTo 0) {
+            calendar.timeInMillis = System.currentTimeMillis()
+            calendar.add(Calendar.DAY_OF_YEAR, -i)
+
+            val dayStart = Calendar.getInstance().apply {
+                timeInMillis = calendar.timeInMillis
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            val dayEnd = Calendar.getInstance().apply {
+                timeInMillis = calendar.timeInMillis
+                set(Calendar.HOUR_OF_DAY, 23)
+                set(Calendar.MINUTE, 59)
+                set(Calendar.SECOND, 59)
+                set(Calendar.MILLISECOND, 999)
+            }
+
+            // Calculate points earned that day (only positive values)
+            val dayPoints = logEntries.filter { log ->
+                log.timestamp.time >= dayStart.timeInMillis &&
+                        log.timestamp.time <= dayEnd.timeInMillis &&
+                        log.points > 0
+            }.sumOf { it.points }.toFloat()
+
+            points.add(dayPoints)
+            dateLabels.add(dateFormat.format(calendar.time))
+        }
+
+        // Update the graph with new data
+        graphView.setData(points, dateLabels)
+    }
+
     private fun createHoldListener(points: Long, message: String): View.OnTouchListener {
         var progressAnimator: ObjectAnimator? = null
         val handler = Handler(Looper.getMainLooper())
@@ -320,7 +370,7 @@ class MainActivity : AppCompatActivity() {
     private fun showCustomPointsDialog(isAdding: Boolean) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_points, null)
         val editText = dialogView.findViewById<EditText>(R.id.editTextDialogCustomPoints)
-        val dialogTitle = if (isAdding) "Add Points" else "Use Points"
+        val dialogTitle = if (isAdding) "Add Custom Points" else "Use Custom Points"
         val buttonText = if (isAdding) "Add" else "Use"
 
         AlertDialog.Builder(this)
@@ -341,7 +391,7 @@ class MainActivity : AppCompatActivity() {
                         Toast.makeText(this, "Value is too large", Toast.LENGTH_SHORT).show()
                     }
                 } else {
-                    Toast.makeText(this, "Enter a point value", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Please enter a point value", Toast.LENGTH_SHORT).show()
                 }
                 dialog.dismiss()
             }
@@ -357,6 +407,7 @@ class MainActivity : AppCompatActivity() {
         logAdapter.notifyItemInserted(0)
         binding.recyclerViewLogs.scrollToPosition(0)
         updatePointsUI()
+        updateGraph() // Update graph when new log is added
         saveLogs()
     }
 
