@@ -32,7 +32,7 @@ class LogAdapter(private val logs: List<LogEntry>) : RecyclerView.Adapter<LogAda
         when {
             logEntry.points > 0 -> {
                 holder.detailsTextView.text = "Points: ${numberFormatter.format(logEntry.points)}"
-                holder.detailsTextView.setTextColor(defaultColor)
+                holder.detailsTextView.setTextColor(Color.GREEN)
             }
             logEntry.points < 0 -> {
                 val usedPoints = -logEntry.points
