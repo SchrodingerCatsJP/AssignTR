@@ -506,8 +506,8 @@ class MainActivity : AppCompatActivity() {
         val totalPoints = logEntries.sumOf { it.points }
         binding.textViewTotalPointsValue.text = numberFormatter.format(totalPoints)
 
-        // Gross Total Points (Earned only)
-        val grossTotal = logEntries.filter { it.points > 0 }.sumOf { it.points }
+        // Gross Total Points (PAID only)
+        val grossTotal = logEntries.filter { it.isPaid }.sumOf { it.points }
         binding.textViewGrossTotalValue.text = "(Earned: ${numberFormatter.format(grossTotal)})"
 
         // Total Used Points
@@ -527,8 +527,8 @@ class MainActivity : AppCompatActivity() {
         val monthlyPoints = monthlyLogs.sumOf { it.points }
         binding.textViewMonthlyPointsValue.text = numberFormatter.format(monthlyPoints)
 
-        // Gross Monthly Points
-        val grossMonthly = monthlyLogs.filter { it.points > 0 }.sumOf { it.points }
+        // Gross Monthly Points (PAID only)
+        val grossMonthly = monthlyLogs.filter { it.isPaid }.sumOf { it.points }
         binding.textViewGrossMonthlyValue.text = "(Earned: ${numberFormatter.format(grossMonthly)})"
 
         // Used Monthly Points

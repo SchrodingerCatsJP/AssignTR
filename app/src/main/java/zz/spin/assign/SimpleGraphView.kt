@@ -1,11 +1,14 @@
 package zz.spin.assign
 
 import android.content.Context
-import android.graphics.*
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.util.AttributeSet
 import android.view.View
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
 import kotlin.math.max
 
 class SimpleGraphView @JvmOverloads constructor(
@@ -14,14 +17,19 @@ class SimpleGraphView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#1976D2") // Blue color
+    private val upPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GREEN
+        strokeWidth = 6f
+        style = Paint.Style.STROKE
+    }
+
+    private val downPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.RED
         strokeWidth = 6f
         style = Paint.Style.STROKE
     }
 
     private val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#1976D2")
         style = Paint.Style.FILL
     }
 
@@ -74,31 +82,37 @@ class SimpleGraphView @JvmOverloads constructor(
             canvas.drawLine(padding, y, width - padding, y, gridPaint)
         }
 
-        // Draw data line
+        // Draw data line and dots
         if (dataPoints.size > 1) {
-            path.reset()
+            for (i in 1 until dataPoints.size) {
+                val x1 = padding + (graphWidth * (i - 1) / (dataPoints.size - 1))
+                val y1 = padding + graphHeight - (graphHeight * dataPoints[i - 1] / maxValue)
 
-            for (i in dataPoints.indices) {
-                val x = padding + (graphWidth * i / (dataPoints.size - 1))
-                val y = padding + graphHeight - (graphHeight * dataPoints[i] / maxValue)
+                val x2 = padding + (graphWidth * i / (dataPoints.size - 1))
+                val y2 = padding + graphHeight - (graphHeight * dataPoints[i] / maxValue)
 
-                if (i == 0) {
-                    path.moveTo(x, y)
-                } else {
-                    path.lineTo(x, y)
-                }
+                val currentPaint = if (dataPoints[i] >= dataPoints[i - 1]) upPaint else downPaint
+                canvas.drawLine(x1, y1, x2, y2, currentPaint)
+
+                // Set dot color and draw dot for the current point
+                dotPaint.color = currentPaint.color
+                canvas.drawCircle(x2, y2, 8f, dotPaint)
             }
-
-            canvas.drawPath(path, linePaint)
         }
 
-        // Draw data points and labels
+        // Draw the first dot
+        if (dataPoints.isNotEmpty()) {
+            val firstX = padding
+            val firstY = padding + graphHeight - (graphHeight * dataPoints[0] / maxValue)
+            dotPaint.color = if (dataPoints.size > 1 && dataPoints[1] >= dataPoints[0]) Color.GREEN else Color.RED
+            canvas.drawCircle(firstX, firstY, 8f, dotPaint)
+        }
+
+
+        // Draw date and value labels
         for (i in dataPoints.indices) {
             val x = padding + (graphWidth * i / max(dataPoints.size - 1, 1))
             val y = padding + graphHeight - (graphHeight * dataPoints[i] / maxValue)
-
-            // Draw dot
-            canvas.drawCircle(x, y, 8f, dotPaint)
 
             // Draw date label
             if (i < dateLabels.size) {
