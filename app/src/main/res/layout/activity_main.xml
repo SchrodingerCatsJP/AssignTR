@@ -152,6 +152,35 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/simpleGraphView" />
 
+    <!-- Export/Import Buttons -->
+    <Button
+        android:id="@+id/buttonExport"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
+        android:text="Export"
+        android:textSize="12sp"
+        android:minHeight="0dp"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        app:layout_constraintBottom_toBottomOf="@id/textViewLogsLabel"
+        app:layout_constraintEnd_toStartOf="@id/buttonImport"
+        app:layout_constraintTop_toTopOf="@id/textViewLogsLabel" />
+
+    <Button
+        android:id="@+id/buttonImport"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginEnd="16dp"
+        android:text="Import"
+        android:textSize="12sp"
+        android:minHeight="0dp"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        app:layout_constraintBottom_toBottomOf="@id/textViewLogsLabel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/textViewLogsLabel" />
+
     <!-- SKIPPED button -->
     <TextView
         android:id="@+id/buttonSkipped"
@@ -197,6 +226,19 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/textViewLogsLabel"
         tools:listitem="@layout/log_item" />
+
+    <!-- Floating Action Button for PAID status (LEFT SIDE) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabPaid"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="16dp"
+        android:src="@android:drawable/ic_dialog_email"
+        app:layout_constraintBottom_toTopOf="@id/buttonDone"
+        app:layout_constraintStart_toStartOf="parent"
+        app:tint="@android:color/white"
+        app:backgroundTint="@color/teal_200" />
 
     <!-- Floating Action Button for adding custom points -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton

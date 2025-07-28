@@ -31,17 +31,38 @@ class LogAdapter(private val logs: List<LogEntry>) : RecyclerView.Adapter<LogAda
 
         when {
             logEntry.points > 0 -> {
-                holder.detailsTextView.text = "Points: ${numberFormatter.format(logEntry.points)}"
-                holder.detailsTextView.setTextColor(Color.GREEN)
+                if (logEntry.isPaid) {
+                    // PAID status - light yellow background
+                    holder.detailsTextView.text = "PAID : +${numberFormatter.format(logEntry.points)}"
+                    holder.detailsTextView.setTextColor(Color.parseColor("#A3F527"))
+                    holder.detailsTextView.setBackgroundColor(Color.TRANSPARENT) // Light yellow
+                    holder.timestampTextView.setBackgroundColor(Color.TRANSPARENT) // Light yellow
+                } else if (logEntry.isCustomAdd) {
+                    // Custom added points
+                    holder.detailsTextView.text = "ADD : +${numberFormatter.format(logEntry.points)}"
+                    holder.detailsTextView.setTextColor(Color.parseColor("#4CAF50")) // Green color
+                    holder.detailsTextView.setBackgroundColor(Color.TRANSPARENT)
+                    holder.timestampTextView.setBackgroundColor(Color.TRANSPARENT)
+                } else {
+                    // Regular DONE points
+                    holder.detailsTextView.text = "DONE : +${numberFormatter.format(logEntry.points)}"
+                    holder.detailsTextView.setTextColor(Color.parseColor("#4CAF50"))
+                    holder.detailsTextView.setBackgroundColor(Color.TRANSPARENT)
+                    holder.timestampTextView.setBackgroundColor(Color.TRANSPARENT)
+                }
             }
             logEntry.points < 0 -> {
                 val usedPoints = -logEntry.points
-                holder.detailsTextView.text = "Used: ${numberFormatter.format(usedPoints)}"
+                holder.detailsTextView.text = "USED: -${numberFormatter.format(usedPoints)}"
                 holder.detailsTextView.setTextColor(Color.RED)
+                holder.detailsTextView.setBackgroundColor(Color.TRANSPARENT)
+                holder.timestampTextView.setBackgroundColor(Color.TRANSPARENT)
             }
             else -> { // points == 0
                 holder.detailsTextView.text = "SKIPPED"
                 holder.detailsTextView.setTextColor(Color.RED)
+                holder.detailsTextView.setBackgroundColor(Color.TRANSPARENT)
+                holder.timestampTextView.setBackgroundColor(Color.TRANSPARENT)
             }
         }
 

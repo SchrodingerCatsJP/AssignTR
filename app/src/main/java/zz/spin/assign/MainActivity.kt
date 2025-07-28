@@ -2,13 +2,16 @@ package zz.spin.assign
 
 import android.animation.ObjectAnimator
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
@@ -21,11 +24,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import zz.spin.assign.databinding.ActivityMainBinding
+import java.io.*
 import java.text.NumberFormat
+import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -65,6 +71,19 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Notifications permission denied.", Toast.LENGTH_SHORT).show()
             }
         }
+
+    // Export/Import launchers
+    private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+        if (uri != null) {
+            exportLogsToUri(uri)
+        }
+    }
+
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            importLogsFromUri(uri)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -211,8 +230,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupClickListeners() {
-        binding.buttonDone.setOnTouchListener(createHoldListener(20000L, "DONE Logged!"))
-        binding.buttonSkipped.setOnTouchListener(createHoldListener(0L, "SKIPPED Logged!"))
+        binding.buttonDone.setOnTouchListener(createHoldListener(20000L, "DONE Logged!", false, false))
+        binding.buttonSkipped.setOnTouchListener(createHoldListener(0L, "SKIPPED Logged!", false, false))
 
         binding.fabAddCustom.setOnClickListener {
             showCustomPointsDialog(true)
@@ -220,6 +239,20 @@ class MainActivity : AppCompatActivity() {
 
         binding.fabSubtractCustom.setOnClickListener {
             showCustomPointsDialog(false)
+        }
+
+        // NEW: Set up PAID button click listener
+        binding.fabPaid.setOnClickListener {
+            showPaidDialog()
+        }
+
+        // NEW: Set up Export/Import button click listeners
+        binding.buttonExport.setOnClickListener {
+            showExportDialog()
+        }
+
+        binding.buttonImport.setOnClickListener {
+            showImportDialog()
         }
     }
 
@@ -271,7 +304,7 @@ class MainActivity : AppCompatActivity() {
         graphView.setData(points, dateLabels)
     }
 
-    private fun createHoldListener(points: Long, message: String): View.OnTouchListener {
+    private fun createHoldListener(points: Long, message: String, isPaid: Boolean = false, isCustomAdd: Boolean = false): View.OnTouchListener {
         var progressAnimator: ObjectAnimator? = null
         val handler = Handler(Looper.getMainLooper())
         var actionRunnable: Runnable? = null
@@ -285,7 +318,7 @@ class MainActivity : AppCompatActivity() {
                 MotionEvent.ACTION_DOWN -> {
                     progressAnimator = ObjectAnimator.ofInt(drawable, "level", 0, 10000).apply { duration = 2000; start() }
                     actionRunnable = Runnable {
-                        addLog(points)
+                        addLog(points, isPaid, isCustomAdd)
 
                         // Play confirmation sound
                         playConfirmationSound()
@@ -370,6 +403,59 @@ class MainActivity : AppCompatActivity() {
         prefs.apply()
     }
 
+    // NEW: Show dialog to mark assignments as PAID
+    private fun showPaidDialog() {
+        // Get all DONE assignments that are not yet paid
+        val unpaidDoneAssignments = logEntries.filter {
+            it.points == 20000L && !it.isPaid && !it.isCustomAdd
+        }
+
+        if (unpaidDoneAssignments.isEmpty()) {
+            Toast.makeText(this, "No unpaid assignments found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Create a list of assignment descriptions for the dialog
+        val assignmentDescriptions = unpaidDoneAssignments.mapIndexed { index, entry ->
+            val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+            "Assignment ${index + 1} - ${formatter.format(entry.timestamp)}"
+        }.toTypedArray()
+
+        val checkedItems = BooleanArray(assignmentDescriptions.size) { false }
+
+        AlertDialog.Builder(this)
+            .setTitle("Mark Assignments as PAID")
+            .setMultiChoiceItems(assignmentDescriptions, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton("Mark as PAID") { dialog, _ ->
+                var markedCount = 0
+                checkedItems.forEachIndexed { index, isChecked ->
+                    if (isChecked) {
+                        val assignmentToMark = unpaidDoneAssignments[index]
+                        // Find the assignment in the main list and mark it as paid
+                        val mainIndex = logEntries.indexOf(assignmentToMark)
+                        if (mainIndex != -1) {
+                            logEntries[mainIndex] = assignmentToMark.copy(isPaid = true)
+                            markedCount++
+                        }
+                    }
+                }
+
+                if (markedCount > 0) {
+                    logAdapter.notifyDataSetChanged()
+                    saveLogs()
+                    Toast.makeText(this, "$markedCount assignment(s) marked as PAID", Toast.LENGTH_SHORT).show()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.cancel()
+            }
+            .create()
+            .show()
+    }
+
     private fun showCustomPointsDialog(isAdding: Boolean) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_points, null)
         val editText = dialogView.findViewById<EditText>(R.id.editTextDialogCustomPoints)
@@ -387,7 +473,8 @@ class MainActivity : AppCompatActivity() {
                         if (!isAdding) {
                             customPoints = -customPoints
                         }
-                        addLog(customPoints)
+                        // Mark custom added points with isCustomAdd = true
+                        addLog(customPoints, false, isAdding)
                         val toastMessage = if (isAdding) "Points Added!" else "Points Used!"
                         Toast.makeText(this, toastMessage, Toast.LENGTH_SHORT).show()
                     } catch (e: NumberFormatException) {
@@ -405,8 +492,8 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun addLog(points: Long) {
-        logEntries.add(0, LogEntry(points = points, timestamp = Date()))
+    private fun addLog(points: Long, isPaid: Boolean = false, isCustomAdd: Boolean = false) {
+        logEntries.add(0, LogEntry(points = points, timestamp = Date(), isPaid = isPaid, isCustomAdd = isCustomAdd))
         logAdapter.notifyItemInserted(0)
         binding.recyclerViewLogs.scrollToPosition(0)
         updatePointsUI()
@@ -470,6 +557,186 @@ class MainActivity : AppCompatActivity() {
             val loadedLogs: MutableList<LogEntry> = gson.fromJson(json, type)
             logEntries.clear()
             logEntries.addAll(loadedLogs)
+        }
+    }
+
+    // Export/Import Methods
+    private fun showExportDialog() {
+        val options = arrayOf("Export as JSON", "Export as CSV")
+
+        AlertDialog.Builder(this)
+            .setTitle("Export Logs")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> exportAsJson()
+                    1 -> exportAsCsv()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun exportAsJson() {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val fileName = "assignment_logs_$timestamp.json"
+        exportLauncher.launch(fileName)
+    }
+
+    private fun exportAsCsv() {
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val fileName = "assignment_logs_$timestamp.csv"
+        exportLauncher.launch(fileName)
+    }
+
+    private fun exportLogsToUri(uri: Uri) {
+        try {
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                val writer = OutputStreamWriter(outputStream)
+
+                when {
+                    uri.toString().contains(".json") -> {
+                        // Export as JSON
+                        val gson = Gson()
+                        val jsonString = gson.toJson(logEntries)
+                        writer.write(jsonString)
+                        Toast.makeText(this, "Logs exported as JSON successfully!", Toast.LENGTH_LONG).show()
+                    }
+                    uri.toString().contains(".csv") -> {
+                        // Export as CSV
+                        writer.write("Points,Timestamp,IsPaid,IsCustomAdd\n")
+                        logEntries.forEach { entry ->
+                            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                            val line = "${entry.points},${dateFormat.format(entry.timestamp)},${entry.isPaid},${entry.isCustomAdd}\n"
+                            writer.write(line)
+                        }
+                        Toast.makeText(this, "Logs exported as CSV successfully!", Toast.LENGTH_LONG).show()
+                    }
+                    else -> {
+                        // Default to JSON if format is unclear
+                        val gson = Gson()
+                        val jsonString = gson.toJson(logEntries)
+                        writer.write(jsonString)
+                        Toast.makeText(this, "Logs exported successfully!", Toast.LENGTH_LONG).show()
+                    }
+                }
+                writer.flush()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showImportDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Import Logs")
+            .setMessage("This will replace all current logs. Are you sure you want to continue?")
+            .setPositiveButton("Import") { _, _ ->
+                importLauncher.launch(arrayOf("application/json", "text/csv", "*/*"))
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun importLogsFromUri(uri: Uri) {
+        try {
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                val reader = BufferedReader(InputStreamReader(inputStream))
+                val content = reader.readText()
+
+                when {
+                    uri.toString().contains(".json") || content.trim().startsWith("[") -> {
+                        // Import as JSON
+                        importFromJson(content)
+                    }
+                    uri.toString().contains(".csv") || content.contains("Points,Timestamp") -> {
+                        // Import as CSV
+                        importFromCsv(content)
+                    }
+                    else -> {
+                        // Try JSON first, then CSV
+                        try {
+                            importFromJson(content)
+                        } catch (e: Exception) {
+                            importFromCsv(content)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun importFromJson(jsonContent: String) {
+        try {
+            val gson = Gson()
+            val type = object : TypeToken<MutableList<LogEntry>>() {}.type
+            val importedLogs: MutableList<LogEntry> = gson.fromJson(jsonContent, type)
+
+            // Replace current logs with imported logs
+            logEntries.clear()
+            logEntries.addAll(importedLogs)
+
+            // Update UI and save
+            logAdapter.notifyDataSetChanged()
+            updatePointsUI()
+            updateGraph()
+            saveLogs()
+
+            Toast.makeText(this, "Successfully imported ${importedLogs.size} log entries from JSON!", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            throw Exception("Invalid JSON format: ${e.message}")
+        }
+    }
+
+    private fun importFromCsv(csvContent: String) {
+        try {
+            val lines = csvContent.split("\n")
+            val importedLogs = mutableListOf<LogEntry>()
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+            // Skip header line if present
+            val dataLines = if (lines.first().contains("Points,Timestamp")) {
+                lines.drop(1)
+            } else {
+                lines
+            }
+
+            dataLines.forEach { line ->
+                if (line.trim().isNotEmpty()) {
+                    val parts = line.split(",")
+                    if (parts.size >= 2) {
+                        try {
+                            val points = parts[0].trim().toLong()
+                            val timestamp = dateFormat.parse(parts[1].trim()) ?: Date()
+                            val isPaid = if (parts.size > 2) parts[2].trim().toBoolean() else false
+                            val isCustomAdd = if (parts.size > 3) parts[3].trim().toBoolean() else false
+
+                            importedLogs.add(LogEntry(points, timestamp, isPaid, isCustomAdd))
+                        } catch (e: Exception) {
+                            // Skip invalid lines
+                        }
+                    }
+                }
+            }
+
+            if (importedLogs.isNotEmpty()) {
+                // Replace current logs with imported logs
+                logEntries.clear()
+                logEntries.addAll(importedLogs)
+
+                // Update UI and save
+                logAdapter.notifyDataSetChanged()
+                updatePointsUI()
+                updateGraph()
+                saveLogs()
+
+                Toast.makeText(this, "Successfully imported ${importedLogs.size} log entries from CSV!", Toast.LENGTH_LONG).show()
+            } else {
+                throw Exception("No valid log entries found in CSV")
+            }
+        } catch (e: Exception) {
+            throw Exception("Invalid CSV format: ${e.message}")
         }
     }
 }
