@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 
 class LogAdapter(private val logs: List<LogEntry>) : RecyclerView.Adapter<LogAdapter.LogViewHolder>() {
@@ -66,8 +67,27 @@ class LogAdapter(private val logs: List<LogEntry>) : RecyclerView.Adapter<LogAda
             }
         }
 
-        val formatter = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
-        holder.timestampTextView.text = formatter.format(logEntry.timestamp)
+        val today = Calendar.getInstance()
+        val yesterday = Calendar.getInstance()
+        yesterday.add(Calendar.DAY_OF_YEAR, -1)
+        val logCalendar = Calendar.getInstance()
+        logCalendar.time = logEntry.timestamp
+
+        val timestampText = when {
+            today.get(Calendar.YEAR) == logCalendar.get(Calendar.YEAR) &&
+                    today.get(Calendar.DAY_OF_YEAR) == logCalendar.get(Calendar.DAY_OF_YEAR) -> {
+                "TODAY"
+            }
+            yesterday.get(Calendar.YEAR) == logCalendar.get(Calendar.YEAR) &&
+                    yesterday.get(Calendar.DAY_OF_YEAR) == logCalendar.get(Calendar.DAY_OF_YEAR) -> {
+                "YESTERDAY"
+            }
+            else -> {
+                val formatter = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
+                formatter.format(logEntry.timestamp)
+            }
+        }
+        holder.timestampTextView.text = timestampText
     }
 
     override fun getItemCount() = logs.size
