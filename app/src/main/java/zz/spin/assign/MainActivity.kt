@@ -4,38 +4,44 @@ import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.widget.Button
 import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.documentfile.provider.DocumentFile
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
+import org.json.JSONArray
+import org.json.JSONObject
 import zz.spin.assign.databinding.ActivityMainBinding
-import java.io.*
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.text.NumberFormat
-import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+// Data class to hold all app data for export/import
+data class AppData(
+    val logEntries: List<LogEntry>,
+    val lastActionDate: Long
+)
 
 class MainActivity : AppCompatActivity() {
 
@@ -327,7 +333,7 @@ class MainActivity : AppCompatActivity() {
                         view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                         drawable.level = 0
                         // The daily lock is now triggered ONLY by the DONE and SKIPPED buttons
-                        saveLastActionDate()
+                        saveLastActionDate(System.currentTimeMillis())
                         updateButtonStateForToday()
                         // Update interaction flag
                         hasInteractedToday = true
@@ -397,9 +403,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveLastActionDate() {
+    private fun saveLastActionDate(timestamp: Long) {
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-        prefs.putLong(LAST_ACTION_DATE_KEY, System.currentTimeMillis())
+        prefs.putLong(LAST_ACTION_DATE_KEY, timestamp)
         prefs.apply()
     }
 
@@ -445,6 +451,7 @@ class MainActivity : AppCompatActivity() {
                 if (markedCount > 0) {
                     logAdapter.notifyDataSetChanged()
                     saveLogs()
+                    updatePointsUI() // <-- BUG FIX: Refresh the UI after marking as paid
                     Toast.makeText(this, "$markedCount assignment(s) marked as PAID", Toast.LENGTH_SHORT).show()
                 }
                 dialog.dismiss()
@@ -457,10 +464,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showCustomPointsDialog(isAdding: Boolean) {
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_points, null)
-        val editText = dialogView.findViewById<EditText>(R.id.editTextDialogCustomPoints)
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_custom_points_keypad, null)
+        val editText = dialogView.findViewById<TextInputEditText>(R.id.editTextDialogCustomPoints)
         val dialogTitle = if (isAdding) "Add Custom Points" else "Use Custom Points"
         val buttonText = if (isAdding) "Add" else "Use"
+
+        val keypadButtons = mapOf(
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad1) to "1",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad2) to "2",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad3) to "3",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad4) to "4",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad5) to "5",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad6) to "6",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad7) to "7",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad8) to "8",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad9) to "9",
+            dialogView.findViewById<MaterialButton>(R.id.buttonKeypad0) to "0"
+        )
+
+        keypadButtons.forEach { (button, number) ->
+            button.setOnClickListener {
+                editText.setText(editText.text.toString() + number)
+            }
+        }
+
+        dialogView.findViewById<MaterialButton>(R.id.buttonKeypadClear).setOnClickListener {
+            editText.setText("")
+        }
+
+        dialogView.findViewById<MaterialButton>(R.id.buttonKeypadBackspace).setOnClickListener {
+            val currentText = editText.text.toString()
+            if (currentText.isNotEmpty()) {
+                editText.setText(currentText.substring(0, currentText.length - 1))
+            }
+        }
 
         AlertDialog.Builder(this)
             .setTitle(dialogTitle)
@@ -541,22 +578,43 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveLogs() {
-        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-        val gson = Gson()
-        val json = gson.toJson(logEntries)
-        prefs.putString(LOGS_KEY, json)
-        prefs.apply()
+        // REPLACED GSON WITH NATIVE JSON
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+        val jsonArray = JSONArray()
+        logEntries.forEach { entry ->
+            val jsonObject = JSONObject()
+            jsonObject.put("points", entry.points)
+            jsonObject.put("timestamp", entry.timestamp.time)
+            jsonObject.put("isPaid", entry.isPaid)
+            jsonObject.put("isCustomAdd", entry.isCustomAdd)
+            jsonArray.put(jsonObject)
+        }
+        editor.putString(LOGS_KEY, jsonArray.toString())
+        editor.apply()
     }
 
     private fun loadLogs() {
+        // REPLACED GSON WITH NATIVE JSON
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val gson = Gson()
-        val json = prefs.getString(LOGS_KEY, null)
-        val type = object : TypeToken<MutableList<LogEntry>>() {}.type
-        if (json != null) {
-            val loadedLogs: MutableList<LogEntry> = gson.fromJson(json, type)
-            logEntries.clear()
-            logEntries.addAll(loadedLogs)
+        val jsonString = prefs.getString(LOGS_KEY, null)
+        if (jsonString != null) {
+            try {
+                val loadedLogs = mutableListOf<LogEntry>()
+                val jsonArray = JSONArray(jsonString)
+                for (i in 0 until jsonArray.length()) {
+                    val jsonObject = jsonArray.getJSONObject(i)
+                    val points = jsonObject.getLong("points")
+                    val timestamp = Date(jsonObject.getLong("timestamp"))
+                    val isPaid = jsonObject.getBoolean("isPaid")
+                    val isCustomAdd = jsonObject.getBoolean("isCustomAdd")
+                    loadedLogs.add(LogEntry(points, timestamp, isPaid, isCustomAdd))
+                }
+                logEntries.clear()
+                logEntries.addAll(loadedLogs)
+            } catch (e: Exception) {
+                // Handle JSON parsing error
+            }
         }
     }
 
@@ -592,31 +650,38 @@ class MainActivity : AppCompatActivity() {
         try {
             contentResolver.openOutputStream(uri)?.use { outputStream ->
                 val writer = OutputStreamWriter(outputStream)
+                val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val lastActionDate = prefs.getLong(LAST_ACTION_DATE_KEY, 0)
 
                 when {
-                    uri.toString().contains(".json") -> {
-                        // Export as JSON
-                        val gson = Gson()
-                        val jsonString = gson.toJson(logEntries)
-                        writer.write(jsonString)
-                        Toast.makeText(this, "Logs exported as JSON successfully!", Toast.LENGTH_LONG).show()
+                    uri.toString().endsWith(".json") -> {
+                        val appDataObject = JSONObject()
+                        appDataObject.put("lastActionDate", lastActionDate)
+
+                        val logsArray = JSONArray()
+                        logEntries.forEach { entry ->
+                            val logObject = JSONObject()
+                            logObject.put("points", entry.points)
+                            logObject.put("timestamp", entry.timestamp.time)
+                            logObject.put("isPaid", entry.isPaid)
+                            logObject.put("isCustomAdd", entry.isCustomAdd)
+                            logsArray.put(logObject)
+                        }
+                        appDataObject.put("logEntries", logsArray)
+
+                        writer.write(appDataObject.toString(4)) // Use 4 for pretty printing
+                        Toast.makeText(this, "Logs and state exported to JSON successfully!", Toast.LENGTH_LONG).show()
                     }
-                    uri.toString().contains(".csv") -> {
-                        // Export as CSV
+                    uri.toString().endsWith(".csv") -> {
+                        // BUG FIX: Add lastActionDate to CSV export
+                        writer.write("lastActionDate:$lastActionDate\n")
                         writer.write("Points,Timestamp,IsPaid,IsCustomAdd\n")
                         logEntries.forEach { entry ->
                             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                             val line = "${entry.points},${dateFormat.format(entry.timestamp)},${entry.isPaid},${entry.isCustomAdd}\n"
                             writer.write(line)
                         }
-                        Toast.makeText(this, "Logs exported as CSV successfully!", Toast.LENGTH_LONG).show()
-                    }
-                    else -> {
-                        // Default to JSON if format is unclear
-                        val gson = Gson()
-                        val jsonString = gson.toJson(logEntries)
-                        writer.write(jsonString)
-                        Toast.makeText(this, "Logs exported successfully!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, "Logs and state exported to CSV successfully!", Toast.LENGTH_LONG).show()
                     }
                 }
                 writer.flush()
@@ -629,7 +694,7 @@ class MainActivity : AppCompatActivity() {
     private fun showImportDialog() {
         AlertDialog.Builder(this)
             .setTitle("Import Logs")
-            .setMessage("This will replace all current logs. Are you sure you want to continue?")
+            .setMessage("This will replace all current logs and the daily checked-in status. Are you sure you want to continue?")
             .setPositiveButton("Import") { _, _ ->
                 importLauncher.launch(arrayOf("application/json", "text/csv", "*/*"))
             }
@@ -644,19 +709,18 @@ class MainActivity : AppCompatActivity() {
                 val content = reader.readText()
 
                 when {
-                    uri.toString().contains(".json") || content.trim().startsWith("[") -> {
-                        // Import as JSON
+                    uri.toString().endsWith(".json") -> {
                         importFromJson(content)
                     }
-                    uri.toString().contains(".csv") || content.contains("Points,Timestamp") -> {
-                        // Import as CSV
+                    uri.toString().endsWith(".csv") -> {
                         importFromCsv(content)
                     }
                     else -> {
-                        // Try JSON first, then CSV
+                        // Fallback for unknown file types, try JSON first
                         try {
                             importFromJson(content)
                         } catch (e: Exception) {
+                            Toast.makeText(this, "Could not import as JSON, attempting CSV. Error: ${e.message}", Toast.LENGTH_SHORT).show()
                             importFromCsv(content)
                         }
                     }
@@ -669,37 +733,91 @@ class MainActivity : AppCompatActivity() {
 
     private fun importFromJson(jsonContent: String) {
         try {
-            val gson = Gson()
-            val type = object : TypeToken<MutableList<LogEntry>>() {}.type
-            val importedLogs: MutableList<LogEntry> = gson.fromJson(jsonContent, type)
+            // REPLACED GSON WITH NATIVE JSON
+            val importedLogs = mutableListOf<LogEntry>()
+            val appDataObject = JSONObject(jsonContent)
+            val logsArray = appDataObject.getJSONArray("logEntries")
 
-            // Replace current logs with imported logs
+            for (i in 0 until logsArray.length()) {
+                val logObject = logsArray.getJSONObject(i)
+                val points = logObject.getLong("points")
+                val timestamp = Date(logObject.getLong("timestamp"))
+                val isPaid = logObject.getBoolean("isPaid")
+                val isCustomAdd = logObject.getBoolean("isCustomAdd")
+                importedLogs.add(LogEntry(points, timestamp, isPaid, isCustomAdd))
+            }
+
+            // Replace current logs
             logEntries.clear()
             logEntries.addAll(importedLogs)
 
-            // Update UI and save
+            // Save the imported last action date
+            val lastActionDate = appDataObject.getLong("lastActionDate")
+            saveLastActionDate(lastActionDate)
+            saveLogs() // Save the new logs to preferences
+
+            // Update UI completely
             logAdapter.notifyDataSetChanged()
             updatePointsUI()
             updateGraph()
-            saveLogs()
+            updateButtonStateForToday() // This is crucial to refresh the timer
 
-            Toast.makeText(this, "Successfully imported ${importedLogs.size} log entries from JSON!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Successfully imported ${importedLogs.size} logs and state!", Toast.LENGTH_LONG).show()
+
         } catch (e: Exception) {
-            throw Exception("Invalid JSON format: ${e.message}")
+            // This might be an old backup file, try parsing it as a simple array
+            try {
+                val importedLogs = mutableListOf<LogEntry>()
+                val logsArray = JSONArray(jsonContent)
+                for (i in 0 until logsArray.length()) {
+                    val logObject = logsArray.getJSONObject(i)
+                    val points = logObject.getLong("points")
+                    val timestamp = Date(logObject.getLong("timestamp"))
+                    val isPaid = logObject.getBoolean("isPaid")
+                    val isCustomAdd = logObject.getBoolean("isCustomAdd")
+                    importedLogs.add(LogEntry(points, timestamp, isPaid, isCustomAdd))
+                }
+
+                logEntries.clear()
+                logEntries.addAll(importedLogs)
+                saveLogs()
+                logAdapter.notifyDataSetChanged()
+                updatePointsUI()
+                updateGraph()
+                updateButtonStateForToday()
+                Toast.makeText(this, "Imported old backup with ${importedLogs.size} logs. Daily status not updated.", Toast.LENGTH_LONG).show()
+            } catch (e2: Exception) {
+                throw Exception("Invalid JSON format. Could not parse as new or old backup.")
+            }
         }
     }
 
     private fun importFromCsv(csvContent: String) {
         try {
-            val lines = csvContent.split("\n")
+            val lines = csvContent.split("\n").filter { it.isNotEmpty() }
+            if (lines.isEmpty()) {
+                throw Exception("CSV file is empty.")
+            }
+
             val importedLogs = mutableListOf<LogEntry>()
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            var dataLines = lines
+
+            // BUG FIX: Check for and parse lastActionDate from the first line
+            if (lines.first().startsWith("lastActionDate:")) {
+                try {
+                    val lastActionTimestamp = lines.first().removePrefix("lastActionDate:").trim().toLong()
+                    saveLastActionDate(lastActionTimestamp)
+                } catch (e: Exception) {
+                    // Ignore if parsing fails, treat as normal line
+                }
+                dataLines = lines.drop(1) // Remove the special header line
+            }
+
 
             // Skip header line if present
-            val dataLines = if (lines.first().contains("Points,Timestamp")) {
-                lines.drop(1)
-            } else {
-                lines
+            if (dataLines.first().contains("Points,Timestamp")) {
+                dataLines = dataLines.drop(1)
             }
 
             dataLines.forEach { line ->
@@ -725,15 +843,17 @@ class MainActivity : AppCompatActivity() {
                 logEntries.clear()
                 logEntries.addAll(importedLogs)
 
-                // Update UI and save
+                saveLogs()
                 logAdapter.notifyDataSetChanged()
                 updatePointsUI()
                 updateGraph()
-                saveLogs()
+                updateButtonStateForToday() // Refresh the timer with the new date
 
                 Toast.makeText(this, "Successfully imported ${importedLogs.size} log entries from CSV!", Toast.LENGTH_LONG).show()
             } else {
-                throw Exception("No valid log entries found in CSV")
+                if (!lines.first().startsWith("lastActionDate:")) {
+                    throw Exception("No valid log entries found in CSV")
+                }
             }
         } catch (e: Exception) {
             throw Exception("Invalid CSV format: ${e.message}")
