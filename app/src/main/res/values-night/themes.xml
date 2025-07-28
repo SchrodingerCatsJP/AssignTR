@@ -1,17 +1,25 @@
+<!-- app/src/main/res/values-night/themes.xml -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.AssignmentTracker" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <!-- Base application theme for night mode. -->
+    <!-- By customizing Base.Theme.AssignTR, we ensure the changes are applied correctly
+         as the application's manifest file refers to Theme.AssignTR which inherits from this base theme. -->
+    <style name="Base.Theme.AssignTR" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Primary brand color. -->
-        <!-- Changed to the more saturated blue for a vibrant button in dark mode -->
-        <item name="colorPrimary">@color/blue_500</item>
-        <item name="colorPrimaryVariant">@color/blue_700</item>
-        <!-- Changed to white for better contrast on the new blue color -->
-        <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_200</item>
-        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorPrimary">@color/night_primary</item>
+        <item name="colorPrimaryVariant">@color/night_primary_variant</item>
+        <item name="colorOnPrimary">@color/night_on_primary</item>
 
-        <!-- Customize your theme here. -->
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/night_secondary</item>
+        <item name="colorSecondaryVariant">@color/night_secondary</item>
+        <item name="colorOnSecondary">@color/night_on_primary</item>
+
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+
+        <!-- Background and surface colors -->
+        <item name="android:windowBackground">@color/night_surface</item>
+        <item name="colorSurface">@color/night_surface</item>
+        <item name="colorOnSurface">@color/night_on_surface</item>
     </style>
 </resources>
