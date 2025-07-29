@@ -36,6 +36,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 
 // Data class to hold all app data for export/import
 data class AppData(
@@ -259,6 +261,16 @@ class MainActivity : AppCompatActivity() {
 
         binding.buttonImport.setOnClickListener {
             showImportDialog()
+        }
+
+        // NEW: Set up click listener for the logs list to show full logs dialog
+        binding.recyclerViewLogs.setOnClickListener {
+            showFullLogsDialog()
+        }
+
+        // Also make the "Recent Logs" label clickable
+        binding.textViewLogsLabel.setOnClickListener {
+            showFullLogsDialog()
         }
     }
 
@@ -858,5 +870,160 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             throw Exception("Invalid CSV format: ${e.message}")
         }
+    }
+
+    // Updated showFullLogsDialog() method with new filters
+    private fun showFullLogsDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_full_logs, null)
+
+        // Find views with null checks
+        val recyclerView = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recyclerViewAllLogs)
+        val totalLogsCount = dialogView.findViewById<android.widget.TextView>(R.id.textViewTotalLogsCount)
+        val dateFilterSpinner = dialogView.findViewById<Spinner>(R.id.spinnerDateFilter)
+        val categoryFilterSpinner = dialogView.findViewById<Spinner>(R.id.spinnerCategoryFilter)
+        val clearAllButton = dialogView.findViewById<Button>(R.id.buttonClearAllLogs)
+        val closeButton = dialogView.findViewById<Button>(R.id.buttonCloseLogs)
+
+        // Early exit if a critical view is not found
+        if (recyclerView == null || totalLogsCount == null || dateFilterSpinner == null || categoryFilterSpinner == null) {
+            Toast.makeText(this, "Dialog components could not be initialized.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Set up filter options
+        val dateFilterOptions = arrayOf("All Time", "This Year", "This Month", "This Week")
+        val categoryFilterOptions = arrayOf("All", "DONE", "PAID", "USED", "SKIPPED", "CUSTOM ADD")
+
+        val dateSpinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, dateFilterOptions)
+        dateSpinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        dateFilterSpinner.adapter = dateSpinnerAdapter
+
+        val categorySpinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, categoryFilterOptions)
+        categorySpinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        categoryFilterSpinner.adapter = categorySpinnerAdapter
+
+        // Create a copy of logs for the dialog
+        val dialogLogs = mutableListOf<LogEntry>()
+        dialogLogs.addAll(logEntries)
+
+        // Create adapter for dialog
+        val fullLogsAdapter = LogAdapter(dialogLogs)
+        recyclerView.adapter = fullLogsAdapter
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+        // Function to update the displayed logs
+        fun updateLogsDisplay(logs: List<LogEntry>) {
+            dialogLogs.clear()
+            dialogLogs.addAll(logs)
+            fullLogsAdapter.notifyDataSetChanged()
+            totalLogsCount.text = "${logs.size} entries"
+        }
+
+        // Combined filter function
+        fun applyFilters() {
+            val selectedDateFilter = dateFilterSpinner.selectedItem.toString()
+            val selectedCategoryFilter = categoryFilterSpinner.selectedItem.toString()
+
+            val calendar = Calendar.getInstance()
+            val currentYear = calendar.get(Calendar.YEAR)
+            val currentMonth = calendar.get(Calendar.MONTH)
+            // Ensure week calculation is consistent
+            calendar.firstDayOfWeek = Calendar.MONDAY
+            calendar.minimalDaysInFirstWeek = 4 // Adjust if needed, but this is a common standard
+            val currentWeek = calendar.get(Calendar.WEEK_OF_YEAR)
+
+            // 1. Apply date filter
+            val dateFilteredLogs = when (selectedDateFilter) {
+                "This Week" -> {
+                    logEntries.filter { log ->
+                        val logCal = Calendar.getInstance().apply { time = log.timestamp }
+                        logCal.firstDayOfWeek = Calendar.MONDAY
+                        logCal.minimalDaysInFirstWeek = 4
+                        logCal.get(Calendar.YEAR) == currentYear && logCal.get(Calendar.WEEK_OF_YEAR) == currentWeek
+                    }
+                }
+                "This Month" -> {
+                    logEntries.filter { log ->
+                        val logCal = Calendar.getInstance().apply { time = log.timestamp }
+                        logCal.get(Calendar.YEAR) == currentYear && logCal.get(Calendar.MONTH) == currentMonth
+                    }
+                }
+                "This Year" -> {
+                    logEntries.filter { log ->
+                        val logCal = Calendar.getInstance().apply { time = log.timestamp }
+                        logCal.get(Calendar.YEAR) == currentYear
+                    }
+                }
+                else -> logEntries // "All Time"
+            }
+
+            // 2. Apply category filter on the result of the date filter
+            val finalFilteredLogs = when (selectedCategoryFilter) {
+                "All" -> dateFilteredLogs
+                "DONE" -> dateFilteredLogs.filter { it.points == 20000L && !it.isPaid && !it.isCustomAdd }
+                "PAID" -> dateFilteredLogs.filter { it.isPaid }
+                "USED" -> dateFilteredLogs.filter { it.points < 0 }
+                "SKIPPED" -> dateFilteredLogs.filter { it.points == 0L }
+                "CUSTOM ADD" -> dateFilteredLogs.filter { it.isCustomAdd }
+                else -> dateFilteredLogs
+            }
+
+            updateLogsDisplay(finalFilteredLogs)
+        }
+
+        // Set up a single listener for both spinners
+        val filterListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                applyFilters()
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        dateFilterSpinner.onItemSelectedListener = filterListener
+        categoryFilterSpinner.onItemSelectedListener = filterListener
+
+        // Initial display
+        applyFilters()
+
+        // Create dialog
+        val dialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(true)
+            .create()
+
+        // Set up button listeners
+        closeButton?.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        clearAllButton?.setOnClickListener {
+            if (logEntries.isNotEmpty()) {
+                AlertDialog.Builder(this)
+                    .setTitle("Clear All Logs")
+                    .setMessage("Are you sure you want to delete all ${logEntries.size} log entries? This action cannot be undone.")
+                    .setPositiveButton("Clear All") { _, _ ->
+                        logEntries.clear()
+                        logAdapter.notifyDataSetChanged() // Update main screen adapter
+                        updateLogsDisplay(emptyList()) // Update dialog adapter
+                        updatePointsUI()
+                        updateGraph()
+                        saveLogs()
+                        Toast.makeText(this, "All logs cleared", Toast.LENGTH_SHORT).show()
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            } else {
+                Toast.makeText(this, "No logs to clear", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialog.show()
+
+        // Make dialog responsive to screen size
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.95).toInt(),
+            (resources.displayMetrics.heightPixels * 0.8).toInt()
+        )
     }
 }
